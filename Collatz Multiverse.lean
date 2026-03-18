@@ -1,0 +1,1 @@
+import «Collatz Multiverse».Basic

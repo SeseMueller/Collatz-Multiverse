@@ -1,0 +1,6 @@
+/.lake
+
+.DS_Store
+.github/workflows/create-release.yml
+.github/workflows/lean_action_ci.yml
+.github/workflows/update.yml

@@ -1,12 +1,28 @@
-import Mathlib.Data.Nat.Basic
-import Mathlib.Data.Nat.Log
-import Mathlib.Algebra.Ring.Parity
-import Mathlib.Tactic.Ring.Basic
-import Mathlib.Tactic.Use
+/-
+This file was edited by Aristotle (https://aristotle.harmonic.fun).
 
+Lean version: leanprover/lean4:v4.24.0
+Mathlib version: f897ebcf72cd16f89ab4577d0c826cd14afaafc7
+This project request had uuid: 4f5752ee-8169-4046-a039-b78a5ec0e308
+
+To cite Aristotle, tag @Aristotle-Harmonic on GitHub PRs/issues, and add as co-author to commits:
+Co-authored-by: Aristotle (Harmonic) <aristotle-harmonic@harmonic.fun>
+
+The following was proved by Aristotle:
+
+- theorem shapeUniversesWithPowerOfTwoMultipliersAreBounded (u : CollatzUniverse)
+(h : isShapeUniverse u) (m : ∃ k : ℕ, u.multiplier = 2 ^ k) : isBounded u
+
+At Harmonic, we use a modified version of the `generalize_proofs` tactic.
+For compatibility, we include this tactic at the start of the file.
+If you add the comment "-- Harmonic `generalize_proofs` tactic" to your file, we will not do this.
+-/
+
+import Mathlib.Data.Nat.Basic
 import Mathlib.Data.Set.Finite.Basic
 import Mathlib.Order.Interval.Finset.Defs
 import Mathlib.Order.Interval.Finset.Nat
+import Mathlib.Tactic.Use
 import Mathlib.Tactic.Convert
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -16,9 +32,216 @@ import Mathlib.Logic.Function.Iterate
 
 import Aesop
 
-import Batteries.Tactic.GeneralizeProofs
+-- import Batteries.Tactic.GeneralizeProofs
 
+-- namespace Harmonic.GeneralizeProofs
+-- -- Harmonic `generalize_proofs` tactic
 
+-- open Lean Meta Elab Parser.Tactic Elab.Tactic Batteries.Tactic.GeneralizeProofs
+-- def mkLambdaFVarsUsedOnly' (fvars : Array Expr) (e : Expr) : MetaM (Array Expr × Expr) := do
+--   let mut e := e
+--   let mut fvars' : List Expr := []
+--   for i' in [0:fvars.size] do
+--     let fvar := fvars[fvars.size - i' - 1]!
+--     e ← mkLambdaFVars #[fvar] e (usedOnly := false) (usedLetOnly := false)
+--     match e with
+--     | .letE _ _ v b _ => e := b.instantiate1 v
+--     | .lam _ _ _b _ => fvars' := fvar :: fvars'
+--     | _ => unreachable!
+--   return (fvars'.toArray, e)
+
+-- partial def abstractProofs' (e : Expr) (ty? : Option Expr) : MAbs Expr := do
+--   if (← read).depth ≤ (← read).config.maxDepth then
+--     MAbs.withRecurse <| visit (← instantiateMVars e) ty?
+--   else return e
+-- where
+--   visit (e : Expr) (ty? : Option Expr) : MAbs Expr := do
+--     if (← read).config.debug then
+--       if let some ty := ty? then
+--         unless ← isDefEq (← inferType e) ty do
+--           throwError "visit: type of{indentD e}\nis not{indentD ty}"
+--     if e.isAtomic then
+--       return e
+--     else
+--       checkCache (e, ty?) fun _ ↦ do
+--         if ← isProof e then
+--           visitProof e ty?
+--         else
+--           match e with
+--           | .forallE n t b i =>
+--             withLocalDecl n i (← visit t none) fun x ↦ MAbs.withLocal x do
+--               mkForallFVars #[x] (← visit (b.instantiate1 x) none)
+--                 (usedOnly := false) (usedLetOnly := false)
+--           | .lam n t b i => do
+--             withLocalDecl n i (← visit t none) fun x ↦ MAbs.withLocal x do
+--               let ty'? ←
+--                 if let some ty := ty? then
+--                   let .forallE _ _ tyB _ ← pure ty
+--                     | throwError "Expecting forall in abstractProofs .lam"
+--                   pure <| some <| tyB.instantiate1 x
+--                 else
+--                   pure none
+--               mkLambdaFVars #[x] (← visit (b.instantiate1 x) ty'?)
+--                 (usedOnly := false) (usedLetOnly := false)
+--           | .letE n t v b _ =>
+--             let t' ← visit t none
+--             withLetDecl n t' (← visit v t') fun x ↦ MAbs.withLocal x do
+--               mkLetFVars #[x] (← visit (b.instantiate1 x) ty?) (usedLetOnly := false)
+--           | .app .. =>
+--             e.withApp fun f args ↦ do
+--               let f' ← visit f none
+--               let argTys ← appArgExpectedTypes f' args ty?
+--               let mut args' := #[]
+--               for arg in args, argTy in argTys do
+--                 args' := args'.push <| ← visit arg argTy
+--               return mkAppN f' args'
+--           | .mdata _ b  => return e.updateMData! (← visit b ty?)
+--           | .proj _ _ b => return e.updateProj! (← visit b none)
+--           | _           => unreachable!
+--   visitProof (e : Expr) (ty? : Option Expr) : MAbs Expr := do
+--     let eOrig := e
+--     let fvars := (← read).fvars
+--     let e := e.withApp' fun f args => f.beta args
+--     if e.withApp' fun f args => f.isAtomic && args.all fvars.contains then return e
+--     let e ←
+--       if let some ty := ty? then
+--         if (← read).config.debug then
+--           unless ← isDefEq ty (← inferType e) do
+--             throwError m!"visitProof: incorrectly propagated type{indentD ty}\nfor{indentD e}"
+--         mkExpectedTypeHint e ty
+--       else pure e
+--     if (← read).config.debug then
+--       unless ← Lean.MetavarContext.isWellFormed (← getLCtx) e do
+--         throwError m!"visitProof: proof{indentD e}\nis not well-formed in the current context\n\
+--           fvars: {fvars}"
+--     let (fvars', pf) ← mkLambdaFVarsUsedOnly' fvars e
+--     if !(← read).config.abstract && !fvars'.isEmpty then
+--       return eOrig
+--     if (← read).config.debug then
+--       unless ← Lean.MetavarContext.isWellFormed (← read).initLCtx pf do
+--         throwError m!"visitProof: proof{indentD pf}\nis not well-formed in the initial context\n\
+--           fvars: {fvars}\n{(← mkFreshExprMVar none).mvarId!}"
+--     let pfTy ← instantiateMVars (← inferType pf)
+--     let pfTy ← abstractProofs' pfTy none
+--     if let some pf' ← MAbs.findProof? pfTy then
+--       return mkAppN pf' fvars'
+--     MAbs.insertProof pfTy pf
+--     return mkAppN pf fvars'
+-- partial def withGeneralizedProofs' {α : Type} [Inhabited α] (e : Expr) (ty? : Option Expr)
+--     (k : Array Expr → Array Expr → Expr → MGen α) :
+--     MGen α := do
+--   let propToFVar := (← get).propToFVar
+--   let (e, generalizations) ← MGen.runMAbs <| abstractProofs' e ty?
+--   let rec
+--     go [Inhabited α] (i : Nat) (fvars pfs : Array Expr)
+--         (proofToFVar propToFVar : ExprMap Expr) : MGen α := do
+--       if h : i < generalizations.size then
+--         let (ty, pf) := generalizations[i]
+--         let ty := (← instantiateMVars (ty.replace proofToFVar.get?)).cleanupAnnotations
+--         withLocalDeclD (← mkFreshUserName `pf) ty fun fvar => do
+--           go (i + 1) (fvars := fvars.push fvar) (pfs := pfs.push pf)
+--             (proofToFVar := proofToFVar.insert pf fvar)
+--             (propToFVar := propToFVar.insert ty fvar)
+--       else
+--         withNewLocalInstances fvars 0 do
+--           let e' := e.replace proofToFVar.get?
+--           modify fun s => { s with propToFVar }
+--           k fvars pfs e'
+--   go 0 #[] #[] (proofToFVar := {}) (propToFVar := propToFVar)
+
+-- partial def generalizeProofsCore'
+--     (g : MVarId) (fvars rfvars : Array FVarId) (target : Bool) :
+--     MGen (Array Expr × MVarId) := go g 0 #[]
+-- where
+--   go (g : MVarId) (i : Nat) (hs : Array Expr) : MGen (Array Expr × MVarId) := g.withContext do
+--     let tag ← g.getTag
+--     if h : i < rfvars.size then
+--       let fvar := rfvars[i]
+--       if fvars.contains fvar then
+--         let tgt ← instantiateMVars <| ← g.getType
+--         let ty := (if tgt.isLet then tgt.letType! else tgt.bindingDomain!).cleanupAnnotations
+--         if ← pure tgt.isLet <&&> Meta.isProp ty then
+--           let tgt' := Expr.forallE tgt.letName! ty tgt.letBody! .default
+--           let g' ← mkFreshExprSyntheticOpaqueMVar tgt' tag
+--           g.assign <| .app g' tgt.letValue!
+--           return ← go g'.mvarId! i hs
+--         if let some pf := (← get).propToFVar.get? ty then
+--           let tgt' := tgt.bindingBody!.instantiate1 pf
+--           let g' ← mkFreshExprSyntheticOpaqueMVar tgt' tag
+--           g.assign <| .lam tgt.bindingName! tgt.bindingDomain! g' tgt.bindingInfo!
+--           return ← go g'.mvarId! (i + 1) hs
+--         match tgt with
+--         | .forallE n t b bi =>
+--           let prop ← Meta.isProp t
+--           withGeneralizedProofs' t none fun hs' pfs' t' => do
+--             let t' := t'.cleanupAnnotations
+--             let tgt' := Expr.forallE n t' b bi
+--             let g' ← mkFreshExprSyntheticOpaqueMVar tgt' tag
+--             g.assign <| mkAppN (← mkLambdaFVars hs' g' (usedOnly := false)
+--               (usedLetOnly := false)) pfs'
+--             let (fvar', g') ← g'.mvarId!.intro1P
+--             g'.withContext do Elab.pushInfoLeaf <|
+--               .ofFVarAliasInfo { id := fvar', baseId := fvar, userName := ← fvar'.getUserName }
+--             if prop then
+--               MGen.insertFVar t' (.fvar fvar')
+--             go g' (i + 1) (hs ++ hs')
+--         | .letE n t v b _ =>
+--           withGeneralizedProofs' t none fun hs' pfs' t' => do
+--             withGeneralizedProofs' v t' fun hs'' pfs'' v' => do
+--               let tgt' := Expr.letE n t' v' b false
+--               let g' ← mkFreshExprSyntheticOpaqueMVar tgt' tag
+--               g.assign <| mkAppN (← mkLambdaFVars (hs' ++ hs'') g' (usedOnly := false)
+--                 (usedLetOnly := false)) (pfs' ++ pfs'')
+--               let (fvar', g') ← g'.mvarId!.intro1P
+--               g'.withContext do Elab.pushInfoLeaf <|
+--                 .ofFVarAliasInfo { id := fvar', baseId := fvar, userName := ← fvar'.getUserName }
+--               go g' (i + 1) (hs ++ hs' ++ hs'')
+--         | _ => unreachable!
+--       else
+--         let (fvar', g') ← g.intro1P
+--         g'.withContext do Elab.pushInfoLeaf <|
+--           .ofFVarAliasInfo { id := fvar', baseId := fvar, userName := ← fvar'.getUserName }
+--         go g' (i + 1) hs
+--     else if target then
+--       withGeneralizedProofs' (← g.getType) none fun hs' pfs' ty' => do
+--         let g' ← mkFreshExprSyntheticOpaqueMVar ty' tag
+--         g.assign <| mkAppN (← mkLambdaFVars hs' g' (usedOnly := false) (usedLetOnly := false)) pfs'
+--         return (hs ++ hs', g'.mvarId!)
+--     else
+--       return (hs, g)
+
+-- end GeneralizeProofs
+
+-- open Lean Elab Parser.Tactic Elab.Tactic Batteries.Tactic.GeneralizeProofs
+-- partial def generalizeProofs'
+--     (g : MVarId) (fvars : Array FVarId) (target : Bool) (config : Config := {}) :
+--     MetaM (Array Expr × MVarId) := do
+--   let (rfvars, g) ← g.revert fvars (clearAuxDeclsInsteadOfRevert := true)
+--   g.withContext do
+--     let s := { propToFVar := ← initialPropToFVar }
+--     GeneralizeProofs.generalizeProofsCore' g fvars rfvars target |>.run config |>.run' s
+
+-- elab (name := generalizeProofsElab'') "generalize_proofs" config?:(Parser.Tactic.config)?
+--     hs:(ppSpace colGt binderIdent)* loc?:(location)? : tactic => withMainContext do
+--   let config ← elabConfig (mkOptionalNode config?)
+--   let (fvars, target) ←
+--     match expandOptLocation (Lean.mkOptionalNode loc?) with
+--     | .wildcard => pure ((← getLCtx).getFVarIds, true)
+--     | .targets t target => pure (← getFVarIds t, target)
+--   liftMetaTactic1 fun g => do
+--     let (pfs, g) ← generalizeProofs' g fvars target config
+--     g.withContext do
+--       let mut lctx ← getLCtx
+--       for h in hs, fvar in pfs do
+--         if let `(binderIdent| $s:ident) := h then
+--           lctx := lctx.setUserName fvar.fvarId! s.getId
+--         Expr.addLocalVarInfoForBinderIdent fvar h
+--       Meta.withLCtx lctx (← Meta.getLocalInstances) do
+--         let g' ← Meta.mkFreshExprSyntheticOpaqueMVar (← g.getType) (← g.getTag)
+--         g.assign g'
+--         return g'.mvarId!
+
+-- end Harmonic
 
 -- Inspired by CaryKH's Collatz Multiverse video: https://www.youtube.com/watch?v=n63FBYqj98E
 -- In this repositiory, I want to formalize and prove some of the claims made in that video.
@@ -33,12 +256,8 @@ structure CollatzUniverse where
   adder : ℕ
 deriving Repr
 
--- We need to tell lean that there is a way to tell whether a natural number is even or not.
-@[reducible]
-def NatEvenDecidable := Nat.instDecidablePredEven
-
 def applyCollatz (u : CollatzUniverse) (n : ℕ) : ℕ :=
-  if Even n then
+  if n % 2 = 0 then
     n / 2
   else
     u.multiplier * n + u.adder
@@ -51,7 +270,6 @@ def applyCollatzKTimes (u : CollatzUniverse) (n : ℕ) (k : ℕ) : ℕ :=
   else
     applyCollatzKTimes u (applyCollatz u n) (k - 1)
 
-
 -- We call a Collatz Universe a "Hub-and-Spoke" universe if the multiplier is 0.
 -- These Universes are characterized by the fact that all odd numbers are sent to the same number
 -- (the adder, and, visually, the "hub").
@@ -60,10 +278,11 @@ def isHubAndSpoke (u : CollatzUniverse) : Prop :=
 
 -- Theorem: In a Hub-and-Spoke universe, all odd numbers are sent to the adder of the universe.
 theorem oddNumbersSentToSameNumber (u : CollatzUniverse) (n : ℕ) (h : isHubAndSpoke u)
-(hn : Odd n) : applyCollatz u n = u.adder := by
+(hn : n % 2 = 1) : applyCollatz u n = u.adder := by
   unfold applyCollatz
   unfold isHubAndSpoke at h
-  simp [h, hn]
+  rw [h, hn]
+  simp
 
 -- Maybe I can also prove that in a Hub-and-Spoke universe, all numbers eventually end up
 -- at the adder, but I will save that for later.
@@ -84,29 +303,20 @@ def isShapeUniverse (u : CollatzUniverse) : Prop :=
 -- less than or equal to N.
 def isBounded (u : CollatzUniverse) : Prop :=
   ∀ n : ℕ, ∃ N : ℕ, ∀ k : ℕ, applyCollatzKTimes u n k ≤ N
+
 -- This means that all numbers eventually end up in a cycle, and that there are no
 -- divergent trajectories. However, it does not limit the size or number of the cycles.
 -- Also note that this does not mean that the cycle needs to include, or even include
 -- or contain lower numbers than the starting number.
 
-/- Start of Aristotle.
-
---
-Lean version: leanprover/lean4:v4.24.0
-Mathlib version: f897ebcf72cd16f89ab4577d0c826cd14afaafc7
-This project request had uuid: 4f5752ee-8169-4046-a039-b78a5ec0e308
-
-The following was proved by Aristotle:
-
-- theorem shapeUniversesWithPowerOfTwoMultipliersAreBounded (u : CollatzUniverse)
-(h : isShapeUniverse u) (m : ∃ k : ℕ, u.multiplier = 2 ^ k) : isBounded u
---
-
-It generated a lot of auxillery lemmas as the task I gave it was quite complex.
-I have cleaned up these lemmas and switched them to the actual Even/Odd predicates
-instead of n % 2 = 0 or n % 2 = 1, but the core of the proof is still the same as Aristotle's.
-
--/
+-- It is enough to show that there is some k for which all n do not grow.
+-- theorem isBoundedIfPathGoesLower: (∀ n : ℕ, ∃ k : ℕ, applyCollatzKTimes u n k ≤ n) →
+-- isBounded u := by
+--   simp only [isBounded]
+--   intro h n
+--   specialize h n
+--   obtain ⟨k, hk⟩ := h
+--   sorry
 
 -- We can show that the Shape Universes with a multiplier which is a power of 2 are bounded.
 noncomputable section AristotleLemmas
@@ -148,9 +358,9 @@ In a Shape Universe with multiplier `2^m`, applying the Collatz function to an o
 results in `2^m * n`.
 -/
 lemma shape_odd_step (u : CollatzUniverse) (m : ℕ) (h_shape : isShapeUniverse u)
-  (h_mult : u.multiplier = 2 ^ m) (n : ℕ) (h_odd : Odd n) : applyCollatz u n = 2^m * n := by
+  (h_mult : u.multiplier = 2 ^ m) (n : ℕ) (h_odd : n % 2 = 1) : applyCollatz u n = 2^m * n := by
   unfold applyCollatz;
-  simp_all only [← Nat.not_even_iff_odd, ↓reduceIte, Nat.add_eq_left]
+  simp_all only [Nat.succ_ne_self, ↓reduceIte, Nat.add_eq_left]
   exact h_shape;
 
 /-
@@ -159,7 +369,7 @@ to an odd number `n` returns `n`. This is because the first step multiplies by `
 (since adder is 0), and the next `m` steps divide by 2.
 -/
 lemma shape_odd_return (u : CollatzUniverse) (m : ℕ) (h_shape : isShapeUniverse u)
-(h_mult : u.multiplier = 2 ^ m) (n : ℕ) (h_odd : Odd n) :
+(h_mult : u.multiplier = 2 ^ m) (n : ℕ) (h_odd : n % 2 = 1) :
 applyCollatzKTimes u n (m + 1) = n := by
   convert applyCollatzKTimes_power_of_two_mul u n m using 1;
   rw [ show applyCollatzKTimes u n ( m + 1 ) = applyCollatzKTimes u ( applyCollatz u n ) m
@@ -204,7 +414,7 @@ yielding `2^(m-k) * n` at step `k`.
 -/
 -- This doesn't require a shape universe.
 lemma shape_cycle_descent (u : CollatzUniverse) (m : ℕ) --(h_shape : isShapeUniverse u)
-(h_mult : u.multiplier = 2 ^ m) (n : ℕ) :
+(h_mult : u.multiplier = 2 ^ m) (n : ℕ) (h_odd : n % 2 = 1) :
   ∀ k ≤ m, applyCollatzKTimes u (2^m * n) k = 2^(m-k) * n := by
     intro k hk_le_m
     have h_ind : ∀ k ≤ m, applyCollatzKTimes u (2^m * n) k =
@@ -224,18 +434,14 @@ lemma shape_cycle_descent (u : CollatzUniverse) (m : ℕ) --(h_shape : isShapeUn
       rw [ h_ind_step _ ( by linarith ), Nat.sub_succ ];
       unfold applyCollatzKTimes; simp +decide only [↓reduceIte, Nat.mul_comm, tsub_self,
         Nat.pred_eq_sub_one] ;
-      have even_power: ∀ a : ℕ, a ≥ 1 → Even (2 ^ a) :=
-        by grind;
-      have even_mul: ∀ a b : ℕ, Even b → Even (a * b) := fun a b a_1 ↦ Even.mul_left a_1 a;
-      have even_power_mul : ∀ a b : ℕ, b ≥ 1 → Even (a * 2 ^ b) := by
-        intros a b ha
-        apply even_mul
-        exact even_power b ha;
-      unfold applyCollatz; simp +decide only [h_mult] ;
-      cases h : m - ‹_› <;> simp_all +decide only [ne_eq, Nat.pow_succ', dvd_mul_right,
-        Nat.mul_div_assoc, mul_div_cancel_left₀, add_tsub_cancel_right];
+      unfold applyCollatz; simp +decide only [Nat.mul_mod, Nat.pow_mod, Nat.mod_self, Nat.zero_mod,
+        dvd_refl, Nat.mod_mod_of_dvd, h_mult] ;
+      cases h : m - ‹_› <;> simp_all +decide only [Nat.mod_succ, Nat.zero_mod, ne_eq,
+        Nat.add_eq_zero_iff, and_false, not_false_eq_true, zero_pow, mul_zero, ↓reduceIte,
+        Nat.pow_succ', dvd_mul_right, Nat.mul_div_assoc, mul_div_cancel_left₀,
+        add_tsub_cancel_right];
       · omega;
-      · unfold applyCollatzKTimes; simp +decide only [↓reduceIte] ; norm_num
+      · unfold applyCollatzKTimes; simp +decide only [↓reduceIte] ;
     rw [ h_ind k hk_le_m, applyCollatzKTimes ] ; aesop;
 
 /-
@@ -259,7 +465,7 @@ In a Shape Universe with multiplier `2^m`,
 the trajectory of an odd number `n` is bounded by `2^m * n`.
 -/
 lemma shape_cycle_max (u : CollatzUniverse) (m : ℕ) (h_shape : isShapeUniverse u)
-(h_mult : u.multiplier = 2 ^ m) (n : ℕ) (h_odd : Odd n) :
+(h_mult : u.multiplier = 2 ^ m) (n : ℕ) (h_odd : n % 2 = 1) :
 ∀ k, applyCollatzKTimes u n k ≤ 2^m * n := by
   intro k
   set r := k % (m + 1) with hr
@@ -277,7 +483,7 @@ lemma shape_cycle_max (u : CollatzUniverse) (m : ℕ) (h_shape : isShapeUniverse
       rw [h_applyCollatz] at h_r_step
       have h_cycle : applyCollatzKTimes u (2 ^ m * n) s ≤ 2 ^ m * n := by
         have h_cycle : applyCollatzKTimes u (2 ^ m * n) s = 2 ^ (m - s) * n := by
-          apply shape_cycle_descent u m h_mult n s (by
+          apply shape_cycle_descent u m h_mult n h_odd s (by
           linarith [ Nat.mod_lt k ( Nat.succ_pos m ) ])
         generalize_proofs at *; (
         exact h_cycle.symm ▸ Nat.mul_le_mul_right _
@@ -311,8 +517,8 @@ applyCollatzKTimes u (2^a * b) k = 2^(a-k) * b := by
 For any number `n`, applying the Collatz function repeatedly will eventually result in an odd number
 or 0. This is because if the number is even, we divide by 2, strictly decreasing it (unless it's 0).
 -/
-lemma eventually_odd_or_zero (u : CollatzUniverse) (n : ℕ) : ∃ k, Odd (applyCollatzKTimes u n k) ∨
-applyCollatzKTimes u n k = 0 := by
+lemma eventually_odd_or_zero (u : CollatzUniverse) (n : ℕ) : ∃ k, (applyCollatzKTimes u n k) % 2 =
+1 ∨ applyCollatzKTimes u n k = 0 := by
   by_contra h_no_odd_or_zero;
   -- Let's apply the definition of `applyCollatzKTimes` repeatedly.
   have h_def : ∀ k, applyCollatzKTimes u n (k + 1) = applyCollatz u (applyCollatzKTimes u n k) := by
@@ -321,14 +527,14 @@ applyCollatzKTimes u n k = 0 := by
     rw [applyCollatzKTimes]
     simp only [one_ne_zero, ↓reduceIte, tsub_self];
     rw [ applyCollatzKTimes ] ;
-    simp_all only [not_exists, not_or, ↓reduceIte];
+    simp_all only [not_exists, not_or, Nat.mod_two_not_eq_one, ↓reduceIte];
   -- By definition of `applyCollatz`, if `applyCollatzKTimes u n k` is even,
   -- then `applyCollatzKTimes u n (k + 1) = applyCollatzKTimes u n k / 2`.
-  have h_even_step : ∀ k, Even (applyCollatzKTimes u n k) → applyCollatzKTimes u n (k + 1) =
+  have h_even_step : ∀ k, applyCollatzKTimes u n k % 2 = 0 → applyCollatzKTimes u n (k + 1) =
   applyCollatzKTimes u n k / 2 := by
     unfold applyCollatz at *;
     intro k a
-    simp_all only [not_exists, not_or, ↓reduceIte];
+    simp_all only [not_exists, not_or, Nat.mod_two_not_eq_one, ↓reduceIte];
   -- Since `applyCollatzKTimes u n k` is always even and positive, it must strictly decrease.
   have h_strict_decr : StrictAnti (fun k => applyCollatzKTimes u n k) := by
     exact strictAnti_nat_of_succ_lt (by grind);
@@ -337,18 +543,6 @@ applyCollatzKTimes u n k = 0 := by
       ⟨ _, Set.forall_mem_range.mpr fun k => h_strict_decr.antitone k.zero_le ⟩ )
 
 end AristotleLemmas
-
-
--- It is enough to show that there is some k for which all n do not grow.
-theorem isBoundedIfPathGoesLower: (∀ n : ℕ, ∃ k : ℕ, applyCollatzKTimes u n k ≤ n)
-  → isBounded u := by
-  simp only [isBounded]
-  intro h n
-  specialize h n
-  obtain ⟨k, hk⟩ := h
-  sorry
-
--- We can show that the Shape Universes with a multiplier which is a power of 2 are bounded.
 
 theorem shapeUniversesWithPowerOfTwoMultipliersAreBounded (u : CollatzUniverse)
 (h : isShapeUniverse u) (m : ∃ k : ℕ, u.multiplier = 2 ^ k) : isBounded u := by
@@ -359,7 +553,7 @@ theorem shapeUniversesWithPowerOfTwoMultipliersAreBounded (u : CollatzUniverse)
   -- unfold applyCollatzKTimes
   -- Use `eventually_odd_or_zero` to find `k` such that `n_k = applyCollatzKTimes u n k`
   -- is either odd or 0.
-  obtain ⟨k₀, hk₀⟩ : ∃ k₀, Odd (applyCollatzKTimes u n k₀) ∨ applyCollatzKTimes u n k₀ = 0 :=
+  obtain ⟨k₀, hk₀⟩ : ∃ k₀, (applyCollatzKTimes u n k₀) % 2 = 1 ∨ applyCollatzKTimes u n k₀ = 0 :=
     eventually_odd_or_zero u n;
   -- Consider the set of values in the trajectory up to step
   -- `k₀`: `S = {applyCollatzKTimes u n i | i ≤ k₀}`.
@@ -372,8 +566,8 @@ theorem shapeUniversesWithPowerOfTwoMultipliersAreBounded (u : CollatzUniverse)
   by_cases h_zero : applyCollatzKTimes u n k₀ = 0;
   · -- Since `applyCollatz u 0 = 0`, the trajectory stays at 0 for all `j >= k₀`.
     have h_zero_trajectory : ∀ j ≥ k₀, applyCollatzKTimes u n j = 0 := by
-      intro j hj; induction hj <;> simp_all +decide only [or_true, Nat.le_eq, Nat.succ_eq_add_one,
-        applyCollatzKTimes_add] ;
+      intro j hj; induction hj <;> simp_all +decide only [Nat.zero_mod, zero_ne_one, or_true,
+        Nat.le_eq, Nat.succ_eq_add_one, applyCollatzKTimes_add] ;
       unfold applyCollatzKTimes; simp +decide only [↓reduceIte, applyCollatz, Nat.zero_div,
         tsub_self] ;
       unfold applyCollatzKTimes; simp +decide only [↓reduceIte] ;
@@ -383,8 +577,8 @@ theorem shapeUniversesWithPowerOfTwoMultipliersAreBounded (u : CollatzUniverse)
         le_trans ( le_of_eq ( h_zero_trajectory j ( le_of_not_ge hj ) ) ) ( le_max_right _ _ ) ⟩;
   · -- If `n_k` is odd, then let `n' = n_k`. By `shape_cycle_max`,
     -- for all `j`, `applyCollatzKTimes u n' j ≤ 2^k * n'`.
-    obtain ⟨n', hn'⟩ : ∃ n', applyCollatzKTimes u n k₀ = n' ∧ Odd n' := by
-      simp_all only [or_false, ↓existsAndEq, and_self]
+    obtain ⟨n', hn'⟩ : ∃ n', applyCollatzKTimes u n k₀ = n' ∧ n' % 2 = 1 := by
+      aesop
     have h_shape_cycle : ∀ j, applyCollatzKTimes u n' j ≤ 2^k * n' := by
       apply shape_cycle_max u k h m n' hn'.right;
     -- Any step `t > k₀` can be written as `k₀ + j`.
@@ -396,9 +590,6 @@ theorem shapeUniversesWithPowerOfTwoMultipliersAreBounded (u : CollatzUniverse)
       else
         le_trans ( h_step t ( not_le.mp ht ) ▸ h_shape_cycle _ ) ( le_max_right _ _ ) ⟩
 
-
-
-
 -- The opposite of a bounded universe is an "unbounded" universe, where there exists a number
 -- such that for all k, applying the Collatz function k times to the number results in a number
 -- greater than the original number.
@@ -407,74 +598,3 @@ def isUnbounded (u : CollatzUniverse) : Prop :=
 
 theorem boundedEqNotUnbounded (u : CollatzUniverse) : isBounded u ↔ ¬ isUnbounded u := by
   simp [isBounded, isUnbounded]
-
--- If we are in a Shape Universe with an odd number multiplier > 2, then applying the Collatz
--- function k times to an odd number multiplies it by multiplier ^ k.
-theorem shapeUniversesWithOddLargeTwoGrowExponentially (u : CollatzUniverse)
-(h : isShapeUniverse u) (hodd : Odd u.multiplier) (i k : ℕ)
-(hiodd : Odd i) :  applyCollatzKTimes u i k = i * (u.multiplier ^ k) := by
-  revert i
-  induction k with
-  | zero =>
-    simp [applyCollatzKTimes]
-  | succ n Hn =>
-    unfold applyCollatzKTimes
-    simp only [Nat.add_eq_zero_iff, one_ne_zero, and_false, ↓reduceIte, Nat.add_one_sub_one]
-    intro i hiodd
-    unfold isShapeUniverse at h
-    have hinegeven := Nat.not_even_iff_odd.mpr hiodd
-    have HApplOdd : Odd (applyCollatz u i) := by
-      simp only [applyCollatz, hinegeven, ↓reduceIte, h, add_zero]
-      exact Odd.mul hodd hiodd
-    have HnAppl := Hn (applyCollatz u i) HApplOdd
-    rw [HnAppl]
-    simp [applyCollatz, hinegeven, h]
-    ring1
-
-
-
--- We can show that the Shape Universes with odd numbers > 2 are all unbounded, as 1 explodes.
-theorem shapeUniversesWithOddLargerTwoAreUnbounded (u : CollatzUniverse) (h : isShapeUniverse u)
-(hodd : Odd u.multiplier) (hgt2 : u.multiplier > 2) : isUnbounded u := by
-  have : ¬ isBounded u ↔ isUnbounded u := by simp [boundedEqNotUnbounded]
-  rw [← this]
-  simp only [isBounded, not_forall, not_exists, not_le]
-  use 1
-  intro low
-  use low
-  have temp := fun X => shapeUniversesWithOddLargeTwoGrowExponentially u h hodd 1 X (by decide)
-  rw [temp]
-  simp only [one_mul, gt_iff_lt]
-  have : ∀ k : ℕ, k < 3 ^k := by
-    intro k
-    induction k with
-    | zero => simp
-    | succ n Hn =>
-      grind
-  have : ∀ k e : ℕ, e > 2 → k < e ^k := by
-    clear * -
-    intros k e he
-    induction k with
-    | zero => simp
-    | succ n Hn =>
-      ring_nf
-      have : 1 < (e-1) * (e ^ n) := by
-        have h1: 1 < e - 1 := by exact Nat.lt_sub_of_add_lt he
-        have h2: 0 < e ^ n := by exact Nat.zero_lt_of_lt Hn
-        exact one_lt_mul_of_lt_of_le' h1 h2
-      have test := Nat.add_lt_add Hn this
-      ring_nf at test
-      convert_to n + 1 < e ^ n + (e ^ n) * (e - 1) using 1
-      · ring
-      · have temp : ∀ a b: ℕ, a > 1 → a * b = b + b * (a - 1) := by
-          intros a b ha
-          calc
-            a * b = b * a := Nat.mul_comm a b
-            b * a = b * (1 - 1 + a) := by ring
-            _ = b * (a - 1 + 1) := by grind
-            _ = b * (a - 1) + b := by ring
-            _ = b + b * (a - 1) := by ring
-        have test := temp e (e ^ n) (by exact Nat.lt_of_add_left_lt he)
-        · exact test
-      · exact Nat.one_add_le_iff.mp test
-  exact Nat.lt_of_succ_le (this low u.multiplier hgt2)

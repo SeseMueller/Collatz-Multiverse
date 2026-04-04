@@ -780,3 +780,79 @@ theorem checkerboardUnbounded (u : CollatzUniverse) (h : isCheckerboard u)
     exact Nat.lt_of_succ_le h_odd_greater
   rw [← runawayIffRunaway' u ] at this
   exact runawayIffUnbounded u this
+
+-- Future theorems to prove:
+-- 1. Different kinds of runaway universes
+-- 1.a. Linear vs exponential runaway universes
+-- 1.b. Real and pseudo runaway universes (directly growing or always having at least one
+--   even number in between, but still growing)
+-- 2. Generalizing the pseudo-nature of some runaway universes, prove that if both the
+--   multiplier and adder are even, then the universe behvaves like its parallel universe
+--   counterpart, where the multiplier and adder are both divided by 2
+--   (but with one number more after each odd number)
+-- 3.?
+-- 4. Full categorization of all universes into the categories:
+--   a. Oddball universes (no known structure)
+--   b. Hub-and-spoke universes (multiplier = 0)
+--   c. Shape universes (adder = 0, multiplier even or 1)
+--      (special case for angle universes where multiplier = 2^m?)
+--   d. Runaway (checkerboard) universes (multiplier and adder have different parity)
+--   e. (Even) Parallel universes (multiplier and adder both even and larger than 1)
+
+-- Stuff from the additional video (https://www.youtube.com/watch?v=3JO-8oZ-IlQ)
+-- - Attach loops to the full categorization?
+--   (Maybe some arguments about how many ups and downs there are in loops)
+-- - Black hole universe (multiplier = 1)
+--   (Boundedness should not be too hard to show)
+--   Depending on the categorization, m=a=1 is the only black hole universe, but the others are
+--   odd parallel universes of it, so they have similar properties.
+-- - Icarus universes: Oddball universes with multiplier > 4 grow quickly;
+--   the law of large numbers suggests that they are unbounded. There is no proof of this,
+--   as far as I know. (average growth rate is > 1)
+-- - Odd parallel universes: multipliers are equal, but one adder is large and odd and the other 1.
+--   (The larger universe should contain a copy of the 1 universe, but scaled by the adder)
+--   If a loop exists in the base universe, the odd parallel universe will contain a copy of it,
+--   scaled by the adder, without any more numbers in between.
+--   More generally, for all numbers in the base universe, the odd parallel universe copies their
+--   trajectories onto numbers scaled by the adder, without any more numbers in between.
+--   There is also some interesting behavior in odd parallel universes of multiplier=adder=1
+-- - Factor loyalty: when adder=multiplier: odd, that once you hit an odd number,
+--   you never loose that factor (2 can't devide odd factors and odds don't change it)
+--   (this only applies to diagonal odd universes, as the universe would have a different
+--   categorization if not both the multiplier and adder were odd)
+--   Something about the interaction between odd parallel universes and factor loyalty?
+--   (Non-factor local numbers becomse factor loyal, then all loops are copies of the base universe)
+-- - Even parallel universes
+--   (we already have them, but there are a few more things to say about them)
+--   Odd numbers return to the same number, but after 1 step more than their base universe.
+-- - New categories:
+--   - Only look at the Even Parallel universes that are "Non-HASOS"
+--     (Non Hub-And-Spoke-Or-Shape universes)
+--   - Odd parallel universes
+--     - Disconnected odd parallel universes (adder ≠ multiplier), scale with O(n^2)
+--     - Connected odd parallel universes (adder = multiplier), scale with O(n)
+--       - Also, maybe things like (adder | multiplier or multiplier | adder) also fit in here?
+--   - Split runaway universes into linear and exponential runaway universes
+--   - Icarus universes (oddball universes with multiplier > 4)
+--   - Goldilocks universe (multiplier = 3, adder = 1)
+--   - Black hole universes (multiplier = 1), which are bounded and have finite loops
+-- - Some theorems about the "growths" of different numbers/universes?
+--   (A "growth" for a number in a specific universe is the ratio between the highest number
+---  in its trajectory and the number itself. It only exists if the trajectory is bounded)
+--   Maybe manage to produce the growth table? It really nicely shows the (pseudo-)linear runaways.
+--   The sqrt(2) results of the m=2, a=even universes might be reproducable.
+-- - Prove that above m=4, everything that isn't a parallel universe is a runaway universe
+-- - Investigate m=3 a=34 anomaly? (Basically, the numbers get surprisingly large, but it's bounded)
+--   (742103 causes this) (it's not really rigorous...)
+-- - I highly doubt that it's possible to connect this to universal cellular automata,
+--   or the Mangelbrot/Julia sets.
+-- - Explore linear increase of average path length across even parallel universes???
+--   (If you calculate the average path length for a set of numbers, the average path length
+--   in its even parallel universe increases by a constant amount) (The 38 relationship)
+
+-- Hypothesis: if a universe is unbounded, then 1 explodes.
+-- Goal: find counterexamples to this
+
+
+-- Note: in the additional video, the angle universes are called shape universes
+-- and shape universes aren't mentioned? I'll keep my naming convention.
